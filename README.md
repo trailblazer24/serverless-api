@@ -2,11 +2,16 @@
 
 A production-grade, containerized REST API built with Python (FastAPI) and Docker, designed for automated zero-scaling deployment on Google Cloud Run.
 
-## Tech Stack
+## System Architecture & Tech Stack
 Language: Python 3.11
 Framework: FastAPI / Uvicorn
-Containerization:** Docker (Multi-stage / Non-root execution)
+Containerization: Docker (Multi-stage / Non-root execution)
 Cloud Infrastructure: Google Cloud Platform (Cloud Run, Artifact Registry)
+Version Control: Git and GitHub
+
+## Core Features
+1. 
+
 
 ## Local Development Setup
 1. Clone the repository:
