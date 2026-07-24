@@ -1,43 +1,33 @@
 import base64
 import json
-import os
+import datetime
 from google.cloud import bigquery
-import functions_framework
 
+# Initialize BigQuery client
 bq_client = bigquery.Client()
-TABLE_REF = "flash-gasket-486800-p9.telemetry_data.device_telemetry"
+TABLE_ID = "flash-gasket-486800-p9.telemetry_data.telemetry_events_optimized"
 
-@functions_framework.cloud_event
-def stream_to_bigquery(cloud_event):
-    """Triggered by a CloudEvent from a Pub/Sub message topic."""
-    
-    # Access and decode the base64 Pub/Sub payload
-    pubsub_message = cloud_event.data["message"]
-    if "data" not in pubsub_message:
-        print("⚠️ No data block found in message payload.")
-        return
+def sanitize_and_insert(event, context):
+    """Triggered by Pub/Sub message."""
+    try:
+        # Decode Pub/Sub message payload
+        if "data" in event:
+            pubsub_message = base64.b64decode(event["data"]).decode("utf-8")
+            data = json.loads(pubsub_message)
+        else:
+            data = event
 
-    raw_data = base64.b64decode(pubsub_message["data"]).decode("utf-8")
-    event_json = json.loads(raw_data)
-    
-    print(f"📥 Processing event for user: {event_json.get('user_id')}")
+        # Ensure 'timestamp' exists and is valid ISO format
+        if not data.get("timestamp"):
+            data["timestamp"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    coords = event_json.get("coordinates", {})
-    
-    row_to_insert = {
-        "timestamp": event_json.get("timestamp"),
-        "user_id": event_json.get("user_id"),
-        "session_id": event_json.get("session_id"),
-        "event_type": event_json.get("event_type"),
-        "coordinate_x": coords.get("x"),
-        "coordinate_y": coords.get("y"),
-        "coordinate_z": coords.get("z"),
-        "device_type": event_json.get("device_type")
-    }
+        # Stream row into BigQuery
+        errors = bq_client.insert_rows_json(TABLE_ID, [data])
+        
+        if errors:
+            print(f"❌ BigQuery insertion failure: {errors}")
+        else:
+            print(f"✅ Successfully inserted event into {TABLE_ID}")
 
-    errors = bq_client.insert_rows_json(TABLE_REF, [row_to_insert])
-    
-    if not errors:
-        print("✅ Row successfully committed to BigQuery data warehouse.")
-    else:
-        print(f"❌ BigQuery insertion failure: {errors}")
+    except Exception as e:
+        print(f"⚠️ Error processing telemetry event: {str(e)}")

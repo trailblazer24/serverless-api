@@ -1,8 +1,10 @@
 fastapi
 uvicorn[standard]
-pydantic
-google-cloud-firestore
 google-cloud-bigquery
-google-cloud-pubsub
 google-cloud-secret-manager
+google-cloud-firestore
+google-genai
+cachetools
 python-dotenv
+requests
+pydantic

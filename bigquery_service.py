@@ -1,16 +1,22 @@
 import json
 import os
+import time
 from google.cloud import secretmanager
 from google.cloud import bigquery
+from cachetools import TTLCache
+
 
 class BigQueryService:
     def __init__(self):
         self.project_id = os.getenv("GCP_PROJECT_ID", "flash-gasket-486800-p9")
         
-        # 1. Load secrets FIRST so we have the correct dataset location
+        # 1. Initialize In-Memory Cache (TTL: 60 seconds, Max 100 items)
+        self.cache = TTLCache(maxsize=100, ttl=60)
+        
+        # 2. Load secrets FIRST so we have the correct dataset location
         self._load_secrets()
         
-        # 2. Instantiate the BigQuery client with the dynamic location
+        # 3. Instantiate the BigQuery client with the dynamic location
         self.client = bigquery.Client(
             project=self.project_id, 
             location=self.location
@@ -26,16 +32,30 @@ class BigQueryService:
             payload = json.loads(response.payload.data.decode("UTF-8"))
             self.dataset_id = payload.get("DATASET_ID", "telemetry_data")
             self.table_id = payload.get("TABLE_ID", "telemetry_events")
-            self.location = payload.get("DATASET_LOCATION", "northamerica-northeast1") # [cite: 164, 168]
+            self.location = payload.get("DATASET_LOCATION", "northamerica-northeast1")
             
             print(f"DEBUG: Config loaded successfully -> Dataset: {self.dataset_id}, Table: {self.table_id}, Location: {self.location}")
         except Exception as e:
             print(f"Warning: Could not fetch from Secret Manager: {e}")
             self.dataset_id = "telemetry_data"
             self.table_id = "telemetry_events"
-            self.location = "northamerica-northeast1" # [cite: 164, 168]
+            self.location = "northamerica-northeast1"
 
-    def get_device_breakdown(self) -> list:
+    def get_device_breakdown(self) -> dict:
+        """
+        Fetches device breakdown metrics.
+        Uses in-memory TTL cache to resolve repeated hits in <15ms.
+        """
+        cache_key = "device_breakdown_metrics"
+
+        if cache_key in self.cache:
+            cached_data = self.cache[cache_key]
+            return {
+                "status": "success",
+                "source": "in-memory-cache",
+                "data": cached_data
+            }
+
         query = f"""
             SELECT 
                 device_type, 
@@ -51,7 +71,22 @@ class BigQueryService:
         try:
             query_job = self.client.query(query)
             results = query_job.result()
-            return [{"device_type": row.device_type, "event_count": row.event_count} for row in results]
+            
+            data = [{"device_type": row.device_type, "event_count": row.event_count} for row in results]
+            
+            # Save results into RAM cache for the next 60 seconds
+            self.cache[cache_key] = data
+
+            return {
+                "status": "success",
+                "source": "bigquery-live",
+                "data": data
+            }
         except Exception as e:
             print(f"Error executing BigQuery request: {e}")
-            return []
+            return {
+                "status": "error",
+                "source": "bigquery-live",
+                "message": str(e),
+                "data": []
+            }
