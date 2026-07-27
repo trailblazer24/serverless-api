@@ -50,7 +50,7 @@ def health_readiness():
         raise HTTPException(status_code=503, detail=f"Database unready: {str(e)}")
 
 
-# --- 2. User Management (Complete Firestore CRUD) ---
+# --- 2. User Management (Firestore CRUD - Fully Isolated Path) ---
 
 @app.post("/api/users/{user_id}")
 def create_user(user_id: str, user: UserPayload):
@@ -124,9 +124,9 @@ def get_analytics():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- 5. AI Agent Operational Alerting ---
+# --- 5. AI Agent Operational Alerting (Dedicated Namespace) ---
 
-@app.post("/api/system_alert")
+@app.post("/api/system/alerts")
 def receive_system_alert(alert: AlertPayload):
     try:
         doc_ref = db.collection("system_alerts").document()
