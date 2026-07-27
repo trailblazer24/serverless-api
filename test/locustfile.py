@@ -1,8 +1,7 @@
 import random
 from locust import HttpUser, task, between
 
-class SafeAPIUser(HttpUser):
-    # Wait between 0.2 and 0.5 seconds between requests per user
+class EnterpriseAPIUser(HttpUser):
     wait_time = between(0.2, 0.5)
 
     # 1. Root System Check
@@ -10,33 +9,32 @@ class SafeAPIUser(HttpUser):
     def read_root(self):
         self.client.get("/")
 
-    # 2. Liveness Health Probe (Microsecond response)
+    # 2. Health Probes
     @task(1)
     def liveness_check(self):
         self.client.get("/health/liveness")
 
-    # 3. Readiness Health Probe (Hits Firestore ping)
     @task(1)
     def readiness_check(self):
         self.client.get("/health/readiness")
 
-    # 4. Analytics Engine (Hits BigQuery with RAM cache)
+    # 3. Analytics (Cached BigQuery)
     @task(4)
     def read_analytics(self):
         self.client.get("/analytics/device-breakdown")
 
-    # 5. Single Telemetry Event Ingestion (Matches TelemetryPayload schema)
+    # 4. Telemetry Ingestion
     @task(10)
     def send_telemetry(self):
         payload = {
             "device_id": f"dev_{random.randint(100, 999)}",
             "event_type": random.choice(["click", "view", "error", "purchase"]),
             "timestamp": "2026-07-27T12:00:00Z",
-            "metadata": {"session_id": "locust_stable_test"}
+            "metadata": {"session_id": "locust_test"}
         }
         self.client.post("/telemetry", json=payload)
 
-    # 6. Batch Telemetry Ingestion (High efficiency bulk upload)
+    # 5. Batch Telemetry Ingestion
     @task(3)
     def send_batch_telemetry(self):
         payload = {
@@ -44,9 +42,39 @@ class SafeAPIUser(HttpUser):
                 {
                     "device_id": f"dev_{random.randint(100, 999)}",
                     "event_type": "batch_click",
-                    "timestamp": "2026-07-27T12:00:00Z",
-                    "metadata": {"batch_index": i}
-                } for i in range(5)
+                    "timestamp": "2026-07-27T12:00:00Z"
+                } for _ in range(5)
             ]
         }
         self.client.post("/telemetry/batch", json=payload)
+
+    # 6. Safe Chained User CRUD Lifecycle (Guarantees record existence)
+    @task(2)
+    def user_lifecycle(self):
+        user_id = f"locust_user_{random.randint(10000, 99999)}"
+        user_data = {
+            "name": "Load Test Agent",
+            "email": f"{user_id}@example.com",
+            "role": "tester"
+        }
+        
+        # Create user
+        create_res = self.client.post(f"/api/users/{user_id}", json=user_data)
+        if create_res.status_code == 200:
+            # Read user
+            self.client.get(f"/api/users/{user_id}")
+            # Update user
+            user_data["role"] = "senior_tester"
+            self.client.put(f"/api/users/{user_id}", json=user_data)
+            # Delete user
+            self.client.delete(f"/api/users/{user_id}")
+
+    # 7. AI System Alerts (Hits non-colliding /api/system/alerts path)
+    @task(1)
+    def trigger_alert(self):
+        payload = {
+            "severity": "WARNING",
+            "message": "Simulated system alert from load test",
+            "details": {"source": "locust"}
+        }
+        self.client.post("/api/system/alerts", json=payload)
