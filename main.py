@@ -1,68 +1,136 @@
+import os
+import json
+from typing import List, Optional
 from fastapi import FastAPI, HTTPException
-from bigquery_service import BigQueryService
-from google.cloud import firestore
 from pydantic import BaseModel
+from google.cloud import firestore
+import bigquery_service
 
 app = FastAPI()
-bq_service = BigQueryService()
-
-# Initialize the Firestore client
-# When deployed to Cloud Run, it automatically detects your project ID and credentials
 db = firestore.Client()
 
-# Define what a data payload should look like
+# --- Pydantic Schemas ---
+
 class UserPayload(BaseModel):
     name: str
     email: str
-    role: str
+    role: Optional[str] = "user"
 
 class TelemetryPayload(BaseModel):
-    user_id: str
-    device: str
+    device_id: str
     event_type: str
+    timestamp: str
+    metadata: Optional[dict] = None
+
+class BatchTelemetryPayload(BaseModel):
+    events: List[TelemetryPayload]
+
+class AlertPayload(BaseModel):
+    severity: str
+    message: str
+    details: Optional[dict] = None
+
+
+# --- 1. Root & System Health Probes ---
 
 @app.get("/")
 def read_root():
-    return {"status": "healthy", "message": "API Gateway is running live!"}
+    return {"status": "online", "message": "Serverless API Gateway operational"}
 
-# Endpoint 1: Save data to Firestore
+@app.get("/health/liveness")
+def health_liveness():
+    return {"status": "alive"}
+
+@app.get("/health/readiness")
+def health_readiness():
+    try:
+        db.collection("health").document("ping").get()
+        return {"status": "ready", "database": "connected"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database unready: {str(e)}")
+
+
+# --- 2. User Management (Complete Firestore CRUD) ---
+
 @app.post("/api/users/{user_id}")
 def create_user(user_id: str, user: UserPayload):
     try:
-        # Reference a collection named 'users' and a document named after the user_id
         doc_ref = db.collection("users").document(user_id)
-        
-        # Save the data payload as a dictionary
         doc_ref.set(user.model_dump())
-        
-        return {"status": "success", "message": f"User {user_id} saved successfully."}
+        return {"status": "success", "user_id": user_id, "data": user.model_dump()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint 2: Fetch data from Firestore
 @app.get("/api/users/{user_id}")
 def get_user(user_id: str):
-    doc_ref = db.collection("users").document(user_id)
-    doc = doc_ref.get()
-    
-    if doc.exists:
-        return doc.to_dict()
-    else:
-        raise HTTPException(status_code=404, detail="User not found in database")
-    
-@app.get("/analytics/device-breakdown")
-def read_device_breakdown():
-    """
-    Fetches real-time telemetry metrics directly from BigQuery.
-    """
-    data = bq_service.get_device_breakdown()
-    if not data:
-        raise HTTPException(status_code=500, detail="Failed to retrieve metrics from BigQuery.")
-    return {"status": "success", "data": data}
+    try:
+        doc_ref = db.collection("users").document(user_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"status": "success", "user_id": user_id, "data": doc.to_dict()}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/users/{user_id}")
+def update_user(user_id: str, user: UserPayload):
+    try:
+        doc_ref = db.collection("users").document(user_id)
+        if not doc_ref.get().exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        doc_ref.update(user.model_dump())
+        return {"status": "success", "message": f"User {user_id} updated."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: str):
+    try:
+        doc_ref = db.collection("users").document(user_id)
+        if not doc_ref.get().exists:
+            raise HTTPException(status_code=404, detail="User not found")
+        doc_ref.delete()
+        return {"status": "success", "message": f"User {user_id} deleted."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 3. Telemetry Event Ingestion ---
 
 @app.post("/telemetry")
 def ingest_telemetry(payload: TelemetryPayload):
-    """
-    Ingests event telemetry from clients/simulators.
-    """
     return {"status": "success", "received": payload.model_dump()}
+
+@app.post("/telemetry/batch")
+def ingest_batch_telemetry(payload: BatchTelemetryPayload):
+    count = len(payload.events)
+    return {"status": "success", "processed_count": count}
+
+
+# --- 4. Analytics Engine (BigQuery) ---
+
+@app.get("/analytics/device-breakdown")
+def get_analytics():
+    try:
+        results = bigquery_service.get_device_breakdown()
+        return {"status": "success", "data": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- 5. AI Agent Operational Alerting ---
+
+@app.post("/api/system_alert")
+def receive_system_alert(alert: AlertPayload):
+    try:
+        doc_ref = db.collection("system_alerts").document()
+        doc_ref.set(alert.model_dump())
+        return {"status": "success", "message": "Alert logged successfully to Firestore."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

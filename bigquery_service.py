@@ -90,3 +90,11 @@ class BigQueryService:
                 "message": str(e),
                 "data": []
             }
+
+
+# Instantiate the service so main.py can call it directly
+bq_service = BigQueryService()
+
+def get_device_breakdown():
+    result = bq_service.get_device_breakdown()
+    return result.get("data", [])
