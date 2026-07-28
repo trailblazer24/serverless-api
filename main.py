@@ -115,11 +115,17 @@ def ingest_batch_telemetry(payload: BatchTelemetryPayload):
 
 # --- 4. Analytics Engine (BigQuery) ---
 
+# --- 4. Analytics Engine (BigQuery) ---
+
 @app.get("/analytics/device-breakdown")
 def get_analytics():
     try:
         results = bigquery_service.get_device_breakdown()
+        if results is None:
+            raise HTTPException(status_code=500, detail="BigQuery connection or query execution failed")
         return {"status": "success", "data": results}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -24,11 +24,9 @@ try:
             "user_id": user_id,
             "session_id": f"sess_{user_id.split('_')[1]}",
             "event_type": random.choice(["player_movement", "item_interaction", "ui_click"]),
-            "coordinates": {
-                "x": round(random.uniform(-50.0, 50.0), 4),
-                "y": round(random.uniform(0.0, 10.0), 4),
-                "z": round(random.uniform(-50.0, 50.0), 4)
-            },
+            "coordinate_x": round(random.uniform(-50.0, 50.0), 4),
+            "coordinate_y": round(random.uniform(0.0, 10.0), 4),
+            "coordinate_z": round(random.uniform(-50.0, 50.0), 4),
             "device_type": random.choice(["Oculus_Quest_3", "Apple_Vision_Pro", "Desktop_WebXR"])
         }
 

@@ -1,4 +1,5 @@
 import random
+import uuid
 from locust import HttpUser, task, between
 
 class EnterpriseAPIUser(HttpUser):
@@ -48,33 +49,33 @@ class EnterpriseAPIUser(HttpUser):
         }
         self.client.post("/telemetry/batch", json=payload)
 
-    # 6. Safe Chained User CRUD Lifecycle (Guarantees record existence)
+    def on_stop(self):
+        """Runs automatically whenever a virtual user stops or test is interrupted."""
+        if hasattr(self, "current_user_id"):
+            self.client.delete(f"/api/users/{self.current_user_id}")
+
+    # 6. Safe Chained User CRUD Lifecycle
     @task(2)
     def user_lifecycle(self):
-        user_id = f"locust_user_{random.randint(10000, 99999)}"
+        self.current_user_id = f"locust_user_{uuid.uuid4().hex[:8]}"
         user_data = {
             "name": "Load Test Agent",
-            "email": f"{user_id}@example.com",
+            "email": f"{self.current_user_id}@example.com",
             "role": "tester"
         }
         
-        # Create user
-        create_res = self.client.post(f"/api/users/{user_id}", json=user_data)
+        # 1. Create User (POST)
+        create_res = self.client.post(f"/api/users/{self.current_user_id}", json=user_data)
         if create_res.status_code == 200:
-            # Read user
-            self.client.get(f"/api/users/{user_id}")
-            # Update user
-            user_data["role"] = "senior_tester"
-            self.client.put(f"/api/users/{user_id}", json=user_data)
-            # Delete user
-            self.client.delete(f"/api/users/{user_id}")
-
-    # 7. AI System Alerts (Hits non-colliding /api/system/alerts path)
-    @task(1)
-    def trigger_alert(self):
-        payload = {
-            "severity": "WARNING",
-            "message": "Simulated system alert from load test",
-            "details": {"source": "locust"}
-        }
-        self.client.post("/api/system/alerts", json=payload)
+            try:
+                # 2. Read User (GET) -> Uses user_id string path
+                self.client.get(f"/api/users/{self.current_user_id}")
+                
+                # 3. Update User (PUT) -> FIXED: Uses user_id string path, payload in json=
+                user_data["role"] = "senior_tester"
+                self.client.put(f"/api/users/{self.current_user_id}", json=user_data)
+            finally:
+                # 4. Delete User (DELETE) -> Uses user_id string path
+                self.client.delete(f"/api/users/{self.current_user_id}")
+                if hasattr(self, "current_user_id"):
+                    del self.current_user_id

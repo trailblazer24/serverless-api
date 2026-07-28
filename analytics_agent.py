@@ -46,14 +46,15 @@ def run_bigquery_sql(sql_query: str) -> str:
 
 
 def send_gateway_alert(anomaly_type: str, severity: str, details: str) -> str:
-    """Sends an automated POST system notification back to the FastAPI API Gateway."""
-    endpoint = f"{API_GATEWAY_URL.rstrip('/')}/api/users/system_alert"
+    """Sends an automated system notification back to the FastAPI API Gateway."""
+    endpoint = f"{API_GATEWAY_URL.rstrip('/')}/api/system/alerts"
     print(f"\n[Tool Execution] 🚨 Triggering API Gateway Webhook Alert at: {endpoint}")
     
+    # Schema matching AlertPayload in main.py
     payload = {
-        "name": f"ALERT_{anomaly_type.upper().replace(' ', '_')}",
-        "email": f"severity_{severity.lower()}@agent.internal",
-        "role": f"System Alert: {details[:80]}"
+        "severity": severity.upper(),
+        "message": f"ALERT_{anomaly_type.upper().replace(' ', '_')}",
+        "details": {"description": details}
     }
     
     try:
