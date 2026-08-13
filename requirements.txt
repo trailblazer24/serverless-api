@@ -8,3 +8,5 @@ cachetools
 python-dotenv
 requests
 pydantic
+pytest
+httpx
