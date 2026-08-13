@@ -1,6 +1,22 @@
-from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
+import os
+from unittest.mock import patch, MagicMock
+
+# Set dummy environment variables for GCP SDKs
+os.environ["GCP_PROJECT_ID"] = "test-project-id"
+os.environ["GOOGLE_CLOUD_PROJECT"] = "test-project-id"
+
+# Mock GCP client initialization before main is imported
+auth_patcher = patch("google.auth.default", return_value=(MagicMock(), "test-project-id"))
+bq_patcher = patch("google.cloud.bigquery.Client")
+fs_patcher = patch("google.cloud.firestore.Client")
+
+auth_patcher.start()
+bq_patcher.start()
+fs_patcher.start()
+
+# Import main after mocks are active
 from main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
