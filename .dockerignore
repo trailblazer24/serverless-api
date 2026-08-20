@@ -1,7 +1,24 @@
+# Virtual Environments & Caches
 venv/
-tests/
-.git/
-.gitignore
-Dockerfile
-*.pyc
+.venv/
 __pycache__/
+*.pyc
+.pytest_cache/
+
+# Local configuration
+.env
+*.json
+
+# Documentation, Tests & Infrastructure
+docs/
+tests/
+test/
+terraform/
+clean_up/
+locustfile.py
+Dockerfile*
+.dockerignore
+.gitignore
+.gcloudignore
+.github/
+README.md

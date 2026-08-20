@@ -1,6 +1,27 @@
+# Python Virtual Environments & Packages
 venv/
-.env
+.venv/
+env/
 __pycache__/
+*.py[cod]
+*$py.class
 .pytest_cache/
+
+# Environment Variables & Secrets
+.env
+.env.*
 *.json
-*.pyc
+!credentials-template.json
+
+# Terraform State & Plugins (Crucial for Phase 3!)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# IDE & OS Specific
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
