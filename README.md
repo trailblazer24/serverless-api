@@ -19,6 +19,7 @@ flowchart LR
         Agent[Autonomous AI Agent] -->|Tool Use / SQL Query| BQ
         Agent -->|POST Webhook / Anomaly Alert| API
     end
+```
 
 ## Core API Endpoints
 1. Health & Probes
