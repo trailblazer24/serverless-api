@@ -115,8 +115,6 @@ def ingest_batch_telemetry(payload: BatchTelemetryPayload):
 
 # --- 4. Analytics Engine (BigQuery) ---
 
-# --- 4. Analytics Engine (BigQuery) ---
-
 @app.get("/analytics/device-breakdown")
 def get_analytics():
     try:
